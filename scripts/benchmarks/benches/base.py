@@ -35,7 +35,7 @@ class Benchmark:
         return run(
             command=command,
             env_vars=env_vars_with_forced_adapter,
-            add_sycl=True,
+            add_sycl=options.sycl is not None,
             cwd=options.benchmark_cwd,
             ld_library=ld_library
         ).stdout.decode()
@@ -55,6 +55,9 @@ class Benchmark:
         return download(self.data_path, url, file, True)
 
     def name(self):
+        raise NotImplementedError()
+
+    def unit(self):
         raise NotImplementedError()
 
     def lower_is_better(self):
