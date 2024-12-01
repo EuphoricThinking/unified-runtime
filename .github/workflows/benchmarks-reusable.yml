@@ -53,7 +53,7 @@ jobs:
         build_type: [Release]
         compiler: [{c: clang, cxx: clang++}]
 
-    runs-on: "${{ inputs.str_name }}_PERF"
+    runs-on: ubuntu-latest
 
     steps:
     - name: Cleanup self-hosted workspace
