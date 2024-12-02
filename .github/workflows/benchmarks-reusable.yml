@@ -103,6 +103,11 @@ jobs:
     #     git rev-parse origin/pr/${PR_NO}/merge
 
 # HERE
+    - name: Install HWLOC
+      run: |
+        sudo apt-get update
+        sudo apt-get install libhwloc-dev
+        
     - name: Checkout UMF
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
