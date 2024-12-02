@@ -107,7 +107,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install libhwloc-dev
-        
+
     - name: Checkout UMF
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
@@ -133,11 +133,13 @@ jobs:
     # - name: Install UR
     #   run: cmake --install ${{github.workspace}}/ur_build
 
+    # numactl -N 0 
+
     - name: Run benchmarks
       working-directory: ${{ github.workspace }}/umf-repo/
       id: benchmarks
       run: >
-        numactl -N 0 ${{ github.workspace }}/umf-repo/scripts/benchmarks/main.py
+        ${{ github.workspace }}/umf-repo/scripts/benchmarks/main.py
         ~/bench_workdir
         --umf ${{ github.workspace }}/umf_build
         ${{ inputs.upload_report && '--output-html' || '' }}
