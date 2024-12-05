@@ -53,7 +53,7 @@ jobs:
         build_type: [Release]
         compiler: [{c: clang, cxx: clang++}]
 
-    runs-on: ubuntu-latest
+    runs-on: "${{ inputs.str_name }}_PERF"
 
     steps:
     - name: Cleanup self-hosted workspace
@@ -181,7 +181,7 @@ jobs:
       run: cmake --build ${{github.workspace}}/umf_build -j $(nproc)
 
     - name: Run benchmarks
-      working-directory: ${{ github.workspace }}/umf-repo/
+      working-directory: ${{ github.workspace }}/ur-repo/
       id: benchmarks
       run: >
         numactl -N 0 ${{ github.workspace }}/ur-repo/scripts/benchmarks/main.py
