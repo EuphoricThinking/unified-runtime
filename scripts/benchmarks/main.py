@@ -15,6 +15,7 @@ from output_markdown import generate_markdown
 from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir;
+from benches.umf import *
 
 import argparse
 import re
@@ -26,10 +27,11 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
     suites = [
-        ComputeBench(directory),
-        VelocityBench(directory),
-        SyclBench(directory),
-        LlamaCppBench(directory),
+        # ComputeBench(directory),
+        # VelocityBench(directory),
+        # SyclBench(directory),
+        # LlamaCppBench(directory),
+        UMFSuite(directory),
         #TestSuite()
     ] if not options.dry_run else []
 
@@ -73,7 +75,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                 if bench_results is not None:
                     for bench_result in bench_results:
                         if bench_result.passed:
-                            print(f"complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit}).")
+                            print(f"complete ({bench_result.label}: {bench_result.value:.3f} {benchmark.unit()}).")
                         else:
                             print(f"complete ({bench_result.label}: verification FAILED)")
                         iteration_results.append(bench_result)
@@ -91,6 +93,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                     median_index = len(label_results) // 2
                     median_result = label_results[median_index]
 
+                    median_result.unit = benchmark.unit()
                     median_result.name = label
                     median_result.lower_is_better = benchmark.lower_is_better()
 
@@ -159,10 +162,12 @@ if __name__ == "__main__":
     parser.add_argument('benchmark_directory', type=str, help='Working directory to setup benchmarks.')
     parser.add_argument('--sycl', type=str, help='Root directory of the SYCL compiler.', default=None)
     parser.add_argument('--ur', type=str, help='UR install prefix path', default=None)
+    parser.add_argument('--umf', type=str, help='UMF install prefix path', default=None)
     parser.add_argument('--adapter', type=str, help='Options to build the Unified Runtime as part of the benchmark', default="level_zero")
     parser.add_argument("--no-rebuild", help='Rebuild the benchmarks from scratch.', action="store_true")
     parser.add_argument("--env", type=str, help='Use env variable for a benchmark run.', action="append", default=[])
     parser.add_argument("--save", type=str, help='Save the results for comparison under a specified name.')
+    # Needed for comparison between benchmarks in the same parameter configuration
     parser.add_argument("--compare", type=str, help='Compare results against previously saved data.', action="append", default=["baseline"])
     parser.add_argument("--iterations", type=int, help='Number of times to run each benchmark to select a median value.', default=5)
     parser.add_argument("--timeout", type=int, help='Timeout for individual benchmarks in seconds.', default=600)
@@ -186,6 +191,7 @@ if __name__ == "__main__":
     options.timeout = args.timeout
     options.epsilon = args.epsilon
     options.ur = args.ur
+    options.umf = args.umf
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
     options.compare = Compare(args.compare_type)

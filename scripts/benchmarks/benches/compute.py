@@ -19,7 +19,7 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return
 
-        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "df38bc342641d7e83fbb4fe764a23d21d734e07b")
+        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "c80ddec9f0b4905bcbeb0f264f710093dc70340d")
         build_path = create_build_path(self.directory, 'compute-benchmarks-build')
 
         configure_command = [
@@ -77,13 +77,6 @@ class ComputeBench(Suite):
 
         return benches
 
-def parse_unit_type(compute_unit):
-    if "[count]" in compute_unit:
-        return "instr"
-    elif "[us]" in compute_unit:
-        return "μs"
-    return "unknown"
-
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
         self.bench = bench
@@ -96,6 +89,9 @@ class ComputeBenchmark(Benchmark):
 
     def extra_env_vars(self) -> dict:
         return {}
+
+    def unit(self):
+        return "μs"
 
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.directory, 'compute-benchmarks-build', 'bin', self.bench_name)
@@ -112,32 +108,22 @@ class ComputeBenchmark(Benchmark):
         env_vars.update(self.extra_env_vars())
 
         result = self.run_bench(command, env_vars)
-        parsed_results = self.parse_output(result)
-        ret = []
-        for label, mean, unit in parsed_results:
-            extra_label = " CPU count" if parse_unit_type(unit) == "CPU count" else ""
-            ret.append(Result(label=self.name() + extra_label, value=mean, command=command, env=env_vars, stdout=result, unit=parse_unit_type(unit)))
-        return ret
+        (label, mean) = self.parse_output(result)
+        return [ Result(label=self.name(), value=mean, command=command, env=env_vars, stdout=result) ]
 
     def parse_output(self, output):
         csv_file = io.StringIO(output)
         reader = csv.reader(csv_file)
         next(reader, None)
-        results = []
-        while True:
-            data_row = next(reader, None)
-            if data_row is None:
-                break
-            try:
-                label = data_row[0]
-                mean = float(data_row[1])
-                unit = data_row[7]
-                results.append((label, mean, unit))
-            except (ValueError, IndexError) as e:
-                raise ValueError(f"Error parsing output: {e}")
-        if len(results) == 0:
+        data_row = next(reader, None)
+        if data_row is None:
             raise ValueError("Benchmark output does not contain data.")
-        return results
+        try:
+            label = data_row[0]
+            mean = float(data_row[1])
+            return (label, mean)
+        except (ValueError, IndexError) as e:
+            raise ValueError(f"Error parsing output: {e}")
 
     def teardown(self):
         return
@@ -263,7 +249,6 @@ class StreamMemory(ComputeBenchmark):
             f"--memoryPlacement={self.placement}",
             "--useEvents=0",
             "--contents=Zeros",
-            "--multiplier=1",
         ]
 
 class VectorSum(ComputeBenchmark):
