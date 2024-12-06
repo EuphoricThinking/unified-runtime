@@ -69,6 +69,7 @@ def prepare_normalized_data(latest_results: dict[str, LatestResults],
 
 def format_benchmark_label(label: str) -> list[str]:
     words = re.split(' |_', label)
+    print("WORDS", words, "\n")
     lines = []
     current_line = []
 
@@ -83,6 +84,8 @@ def format_benchmark_label(label: str) -> list[str]:
     if current_line:
         lines.append(' '.join(current_line))
 
+    print("LINES: ", lines)
+
     return lines
 
 def create_bar_plot(ax: plt.Axes,
@@ -92,7 +95,6 @@ def create_bar_plot(ax: plt.Axes,
                    latest_results: dict[str, LatestResults],
                    benchmarks: list[BenchmarkSeries],
                    baseline_name: str) -> float:
-    print("group:", group_benchmarks)
     x = np.arange(len(group_benchmarks))
     width = 0.8 / len(non_baseline_runs)
     max_height = 0
@@ -141,6 +143,7 @@ def add_chart_elements(ax: plt.Axes,
     ax.set_xticks([])
 
     for idx, label in enumerate(group_benchmarks):
+        print("label in group add_chart_elems", label)
         split_labels = format_benchmark_label(label)
         for i, sublabel in enumerate(split_labels):
             y_pos = max_height + (top_padding * 0.5) + 2 - (i * top_padding * 0.15)
@@ -179,8 +182,26 @@ def split_large_groups(benchmark_groups):
 def group_benchmark_labels(benchmark_labels):
     benchmark_groups = defaultdict(list)
     for label in benchmark_labels:
-        group = re.match(r'^[^_\s]+', label)[0]
-        benchmark_groups[group].append(label)
+        # print("label before grouping", label)
+        # group = re.match(r'^[^\s]+', label)[0]
+        # print("fullregex result: ", re.match(r'^[^_\s]+', label).group())
+        # print("grouping: ", group)
+        # benchmark_groups[group].append(label)
+        # print("group:", group, "label:", benchmark_groups[group])
+        print("label before grouping", label)
+        # config_pool = re.match(r'^[^\s]+', label)
+        config_pool = label.split()
+        group = config_pool[0]
+        # if config_pool:
+        #     print(config_pool.group())
+        # else:
+        #     print("No hash?")
+        pool_label = config_pool[1]
+        print("fullregex result: ", re.match(r'^[^_\s]+', label).group())
+        print("grouping: ", group)
+        benchmark_groups[group].append(pool_label) # HERE label -> pool_label
+        print("group:", group, "label:", benchmark_groups[group])
+    print("benchmark groups:", benchmark_groups, "\n")
     return split_large_groups(benchmark_groups)
 
 def create_normalized_bar_chart(benchmarks: list[BenchmarkSeries], baseline_name: str) -> list[str]:
@@ -192,18 +213,18 @@ def create_normalized_bar_chart(benchmarks: list[BenchmarkSeries], baseline_name
     )))
 
     if baseline_name not in run_names:
-        print("baseline not in names")
         return []
 
     benchmark_labels = [b.label for b in benchmarks]
+    print("labels in create normalized", benchmark_labels)
 
     benchmark_groups = group_benchmark_labels(benchmark_labels)
 
     html_charts = []
 
     for group_name, group_benchmarks in benchmark_groups.items():
-        print("group name:", group_name, "| group benchmark:", group_benchmarks, "\n")
         plt.close('all')
+        print("group name:", group_name, " | group benchmarks:", group_benchmarks, "\n")
         non_baseline_runs = [n for n in run_names if n != baseline_name]
 
         if len(non_baseline_runs) == 0:
@@ -243,7 +264,6 @@ def create_time_series_chart(benchmarks: list[BenchmarkSeries], github_repo: str
         ax = axes[idx]
 
         for run in benchmark.runs:
-            # print("IDX ", idx, ", RUN: ", run, "\n")
             sorted_points = sorted(run.results, key=lambda x: x.date)
             dates = [point.date for point in sorted_points]
             values = [point.value for point in sorted_points]
@@ -294,16 +314,11 @@ def process_benchmark_data(benchmark_runs: list[BenchmarkRun], compare_names: li
     run_map: dict[str, dict[str, list[Result]]] = defaultdict(lambda: defaultdict(list))
 
     for run in benchmark_runs:
-        print("RUN", run.name)
         if run.name not in compare_names:
-            print("not comparing:", run.name)
             continue
-        print("comparing:", run.name)
 
         for result in run.results:
-            print("result label:", result.label)
             if result.label not in benchmark_metadata:
-                print("not in metadata", result.label)
                 benchmark_metadata[result.label] = BenchmarkMetadata(
                     unit=result.unit,
                     lower_is_better=result.lower_is_better
@@ -328,9 +343,6 @@ def process_benchmark_data(benchmark_runs: list[BenchmarkRun], compare_names: li
     return benchmark_series
 
 def generate_html(benchmark_runs: list[BenchmarkRun], github_repo: str, compare_names: list[str]) -> str:
-    # for idx, b in enumerate(benchmark_runs):
-    #     print(idx, b, '\n')
-    # print("end of runs\n\n")
     baseline_name = compare_names[0]
     benchmarks = process_benchmark_data(benchmark_runs, compare_names)
 
