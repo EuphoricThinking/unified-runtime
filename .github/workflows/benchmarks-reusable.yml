@@ -109,7 +109,7 @@ jobs:
         sudo apt-get install libhwloc-dev
 
     - name: Checkout UMF
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      uses: actions/checkout@71527f55b22e76ad1966b9e2ba09e788d0975b12 # v4.1.1
       with:
         repository: EuphoricThinking/unified-memory-framework
         ref: 162853b6298a7b65b3c0d0501ca12ae53bc4d9c7
