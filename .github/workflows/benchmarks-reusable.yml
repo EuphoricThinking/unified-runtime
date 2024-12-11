@@ -164,7 +164,7 @@ jobs:
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
         repository: EuphoricThinking/unified-memory-framework
-        ref: 162853b6298a7b65b3c0d0501ca12ae53bc4d9c7
+        ref: 6aef9bf11b47d0b1390209aeafb6998f0da475c9
         path: umf-repo
         fetch-depth: 1
         fetch-tags: false
