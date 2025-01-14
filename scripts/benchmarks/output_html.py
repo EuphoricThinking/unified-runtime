@@ -193,7 +193,10 @@ def create_grouped_bar_charts(groups: list[ExplicitGroup]) -> list[BenchmarkChar
             # This is a hack to disable all bar_label. Setting labels to empty doesn't work.
             # We create our own labels below for each bar, this works better in mpld3.
             ax.bar_label(rects, fmt="")
-            for rect, run, res in zip(rects, run_results.keys(), valid_data): #run_results.values()):
+            for rect, run, res in zip(rects, run_results.keys(), run_results.values()):
+                if res is None:
+                    continue
+                
                 height = rect.get_height()
                 if height > max_height:
                     max_height = height
