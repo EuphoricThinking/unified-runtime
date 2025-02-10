@@ -32,6 +32,9 @@ class Options:
     extra_env_vars: dict = field(default_factory=dict)
     compute_runtime_tag: str = '24.52.32224.10'
     build_igc: bool = False
+    baseline_name: str = "This PR"
+    is_markdown_full: bool = False
+    default_baseline: str = "baseline"
 
 options = Options()
 
