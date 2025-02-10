@@ -58,6 +58,39 @@ def get_chart_markdown_header(chart_data: dict[str, list[Result]], baseline_name
 
     return summary_header
 
+def get_improved_regressed_summary(is_improved: bool, rows_count: int):
+    title = "Improved"
+    if not is_improved:
+        title = "Regressed"
+
+    summary = (
+            "\n<details>\n"
+            "<summary>\n"        
+            f"{title} {rows_count} "
+            f"(threshold {options.epsilon*100:.2f}%)\n" 
+            "</summary>\n\n"
+            )
+
+    return summary
+
+def get_relative_perf_summary(group_size: int, diffs_product: int, root_for_geometric_mean: int, group_name: str):
+    summary = (
+            "\n<details>\n"
+            f"<summary> Relative perf in group {group_name} " 
+            f"({group_size}): "
+            )
+
+    if root_for_geometric_mean > 0:
+        summary += \
+            (
+            f"{math.pow(diffs_product, 1 / root_for_geometric_mean)*100:.3f}% " 
+            "</summary>\n\n"
+            )
+    else:
+        summary += "cannot calculate </summary>\n\n"
+
+    return summary
+
 
 def get_main_branch_run_name(chart_data: dict[str, list[Result]], baseline_name: str):
     for key in chart_data.keys():
@@ -78,10 +111,9 @@ def generate_markdown_details(results: list[Result], current_markdown_size: int,
     # print("results all", len(results))
     # print("first res", results[0])
     # print("res keys", results.keys())
-    markdown_sections.append(f"""
-<details>
-<summary>Benchmark details - environment, command...</summary>
-""")
+    markdown_start = ("\n<details>\n"
+                      "<summary>Benchmark details - environment, command...</summary>\n")
+    markdown_sections.append(markdown_start)
 
     for res in results:
         
@@ -96,31 +128,33 @@ def generate_markdown_details(results: list[Result], current_markdown_size: int,
             command = ast.literal_eval(res.command)
 
         env_vars_str = '\n'.join(f"{key}={value}" for key, value in env_dict.items()) # res.env.items())
-        section = f"""
-<details>
-<summary>{res.label}</summary>
+        section = ("\n<details>\n"
+                    f"<summary>{res.label}</summary>\n\n"
+                    f"#### Command:\n{' '.join(command)}\n\n")
+#         section = f"""
+# <details>
+# <summary>{res.label}</summary>
 
-#### Command:
-{' '.join(command)}
+# #### Command:
+# {' '.join(command)}
 
-"""
+# """
         if env_dict:
-            section += f"""
-#### Environment Variables:
-{env_vars_str}
+            section += (f"#### Environment Variables:\n {env_vars_str}\n")
+#             f"""
+# #### Environment Variables:
+# {env_vars_str}
 
-"""
-        section += f"""
-</details>
-"""
+# """
+        section += "\n</details>\n" #f"""
+# </details>
+# """
             
         markdown_sections.append(section)
 
-    markdown_sections.append(f"""
-</details>
-""")
+    markdown_sections.append("\n</details>\n")
     
-    full_markdown = "\n".join(markdown_sections)
+    full_markdown = "\n".join(markdown_sections) # without newline?
 
     if markdown_size == MarkdownSize.FULL:
         return full_markdown
@@ -295,13 +329,21 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]], baseli
     
     if len(improved_rows) > 0:
         is_at_least_one_diff = True
-        summary_line += f"""
-<details>
-<summary>        
-Improved {len(improved_rows)} (threshold {options.epsilon*100:.2f}%) 
-</summary>
+        summary_line += get_improved_regressed_summary(is_improved=True, rows_count=len(improved_rows))
+        
+        # ("\n<details>\n"
+        #                 "<summary>\n"        
+        #                 f"Improved {len(improved_rows)} "
+        #                 f"(threshold {options.epsilon*100:.2f}%)\n" 
+        #                 "</summary>\n\n")
 
-"""
+#         f"""
+# <details>
+# <summary>        
+# Improved {len(improved_rows)} (threshold {options.epsilon*100:.2f}%) 
+# </summary>
+
+# """
         summary_line += get_chart_markdown_header(chart_data=chart_data, baseline_name=baseline_name) 
         #"\n\n| Benchmark | " + " | ".join(chart_data.keys()) + " | Relative perf | Change |\n"
         # summary_line += "|---" * (len(chart_data) + 4) + "|\n"
@@ -313,12 +355,14 @@ Improved {len(improved_rows)} (threshold {options.epsilon*100:.2f}%)
     
     if len(regressed_rows) > 0:
         is_at_least_one_diff = True
-        summary_line += f"""
-<details>
-<summary>        
-Regressed {len(regressed_rows)} (threshold {options.epsilon*100:.2f}%) </summary>
+        summary_line += get_improved_regressed_summary(is_improved=False, rows_count=len(regressed_rows))
+        
+#         f"""
+# <details>
+# <summary>        
+# Regressed {len(regressed_rows)} (threshold {options.epsilon*100:.2f}%) </summary>
 
-"""
+# """
     
         summary_line += get_chart_markdown_header(chart_data=chart_data, baseline_name=baseline_name) 
         #"\n\n| Benchmark | " + " | ".join(chart_data.keys()) + " | Relative perf | Change |\n"
@@ -352,34 +396,38 @@ Regressed {len(regressed_rows)} (threshold {options.epsilon*100:.2f}%) </summary
 
             # Geometric mean 
             product = 1.0
-            n = len(outgroup_s)
+            # n = len(outgroup_s)
             r = 0
             for oln in outgroup_s:
                 if oln.diff != None:
                     product *= oln.diff
                     r += 1
-            if r > 0:
-                summary_table += f"""
-<details>
-<summary> Relative perf in group {name} ({n}): {math.pow(product, 1/r)*100:.3f}% </summary>
+            summary_table += get_relative_perf_summary(group_size=len(outgroup_s), diffs_product=product, root_for_geometric_mean=r, group_name=name)
+#             if r > 0:
+#                 summary_table += ("\n<details>\n"
+#                                 f"<summary> Relative perf in group {name} " 
+#                                 f"({len(outgroup_s)}): " 
+#                                 f"{math.pow(product, 1/r)*100:.3f}% " 
+#                                 "</summary>\n\n")
+# #                 f"""
+# # <details>
+# # <summary> Relative perf in group {name} ({n}): {math.pow(product, 1/r)*100:.3f}% </summary>
 
-"""
-            else:
-                summary_table += f"""
-<details>
-<summary> Relative perf in group {name} ({n}): cannot calculate </summary>
+# # """
+#             else:
+#                 summary_table += f"""
+# <details>
+# <summary> Relative perf in group {name} ({n}): cannot calculate </summary>
 
-"""
+# """
             summary_table += get_chart_markdown_header(chart_data, baseline_name) #"| Benchmark | " + " | ".join(chart_data.keys()) + " | Relative perf | Change |\n"
             #summary_table += "|---" * (len(chart_data) + 3) + "|\n"
 
             for oln in outgroup_s:
                 summary_table += f"{oln.row}\n"
 
-            summary_table += f"""
-</details>
+            summary_table += "\n</details>\n\n"
 
-"""
         summary_table += "</details>"
 
     if markdown_size == MarkdownSize.FULL:
@@ -391,26 +439,26 @@ Regressed {len(regressed_rows)} (threshold {options.epsilon*100:.2f}%) </summary
             if is_content_in_size_limit(content_size=len(summary_line), current_markdown_size=0):
                 return summary_line
             else:
-                return f"""
-# Summary
-Benchmark output is too large to display
-
-"""
+                return (
+                    "\n# Summary\n"
+                    "Benchmark output is too large to display\n\n"
+                    )
 
 def generate_markdown(name: str, chart_data: dict[str, list[Result]], markdown_size: MarkdownSize):
     (summary_line, summary_table) = generate_summary_table_and_chart(chart_data, name, markdown_size)
 
     current_markdown_size = len(summary_line) + len(summary_table)
 
-    generated_markdown = f"""
-# Summary
-(<ins>Emphasized values</ins> are the best results)\n
-{summary_line}\n
-{summary_table}
-"""
+    generated_markdown = (
+        "\n# Summary\n"
+        "(<ins>Emphasized values</ins> are the best results)\n"
+        f"{summary_line}\n"
+        f"{summary_table}\n\n"
+    )
+
     if name in chart_data.keys():
-        generated_markdown += f"""
-# Details
-{generate_markdown_details(chart_data[name], current_markdown_size, markdown_size)}
-"""
+        generated_markdown += ("\n# Details\n"
+        f"{generate_markdown_details(chart_data[name], current_markdown_size, markdown_size)}\n"
+        )
+
     return generated_markdown
