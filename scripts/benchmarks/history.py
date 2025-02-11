@@ -7,7 +7,7 @@ import os
 import json
 from pathlib import Path
 from benches.result import Result, BenchmarkRun
-from benches.options import Compare, options
+from options import Compare, options
 from datetime import datetime, timezone
 from utils.utils import run;
 
@@ -37,7 +37,6 @@ class BenchmarkHistory:
         # Extract index numbers and sort files by index number
         def extract_index(file_path: Path) -> int:
             try:
-                print("HISTORY: ", file_path.stem.split('_'), "\n")
                 return int(file_path.stem.split('_')[0])
             except (IndexError, ValueError):
                 return -1

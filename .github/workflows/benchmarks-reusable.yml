@@ -143,6 +143,7 @@ jobs:
         ~/bench_workdir
         --umf ${{ github.workspace }}/umf_build
         ${{ inputs.upload_report && '--output-html' || '' }}
+        ${{ inputs.pr_no != 0 && '--output-markdown' || '' }}
         ${{ inputs.bench_script_params }}
 
     - name: Add comment to PR

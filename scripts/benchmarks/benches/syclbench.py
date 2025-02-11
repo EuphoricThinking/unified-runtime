@@ -9,7 +9,7 @@ import io
 from utils.utils import run, git_clone, create_build_path
 from .base import Benchmark, Suite
 from .result import Result
-from .options import options
+from options import options
 
 class SyclBench(Suite):
     def __init__(self, directory):
@@ -18,6 +18,9 @@ class SyclBench(Suite):
 
         self.directory = directory
         return
+
+    def name(self) -> str:
+        return "SYCL-Bench"
 
     def setup(self):
         if options.sycl is None:
@@ -87,20 +90,17 @@ class SyclBench(Suite):
 
 class SyclBenchmark(Benchmark):
     def __init__(self, bench, name, test):
+        super().__init__(bench.directory, bench)
         self.bench = bench
         self.bench_name = name
         self.test = test
         self.done = False
-        super().__init__(bench.directory)
 
     def bin_args(self) -> list[str]:
         return []
 
     def extra_env_vars(self) -> dict:
         return {}
-
-    def unit(self):
-        return "ms"
 
     def setup(self):
         self.benchmark_bin = os.path.join(self.directory, 'sycl-bench-build', self.bench_name)
@@ -134,7 +134,8 @@ class SyclBenchmark(Benchmark):
                             passed=(row[1]=="PASS"),
                             command=command,
                             env=env_vars,
-                            stdout=row))
+                            stdout=row,
+                            unit="ms"))
         self.done = True
         return res_list
 

@@ -7,14 +7,15 @@ import os
 import shutil
 from pathlib import Path
 from .result import Result
-from .options import options
+from options import options
 from utils.utils import download, run
 import urllib.request
 import tarfile
 
 class Benchmark:
-    def __init__(self, directory):
+    def __init__(self, directory, suite):
         self.directory = directory
+        self.suite = suite
 
     @staticmethod
     def get_adapter_full_path():
@@ -26,38 +27,42 @@ class Benchmark:
         assert False, \
             f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
-    def run_bench(self, command, env_vars, ld_library=[]):
-        env_vars_with_forced_adapter = env_vars.copy()
+    def run_bench(self, command, env_vars, ld_library=[], add_sycl=True):
+        env_vars = env_vars.copy()
         if options.ur is not None:
-            env_vars_with_forced_adapter.update(
+            env_vars.update(
                 {'UR_ADAPTERS_FORCE_LOAD': Benchmark.get_adapter_full_path()})
+
+        env_vars.update(options.extra_env_vars)
+
+        ld_libraries = options.extra_ld_libraries.copy()
+        ld_libraries.extend(ld_library)
 
         return run(
             command=command,
-            env_vars=env_vars_with_forced_adapter,
-            add_sycl=options.sycl is not None,
+            env_vars=env_vars,
+            add_sycl=add_sycl,
             cwd=options.benchmark_cwd,
-            ld_library=ld_library
+            ld_library=ld_libraries
         ).stdout.decode()
 
-    def create_data_path(self, name):
-        data_path = os.path.join(self.directory, "data", name)
-
-        if options.rebuild and Path(data_path).exists():
-           shutil.rmtree(data_path)
+    def create_data_path(self, name, skip_data_dir = False):
+        if skip_data_dir:
+            data_path = os.path.join(self.directory, name)
+        else:
+            data_path = os.path.join(self.directory, 'data', name)
+            if options.rebuild and Path(data_path).exists():
+                shutil.rmtree(data_path)
 
         Path(data_path).mkdir(parents=True, exist_ok=True)
 
         return data_path
 
-    def download(self, name, url, file, untar = False):
-        self.data_path = self.create_data_path(name)
-        return download(self.data_path, url, file, True)
+    def download(self, name, url, file, untar = False, unzip = False, skip_data_dir = False):
+        self.data_path = self.create_data_path(name, skip_data_dir)
+        return download(self.data_path, url, file, untar, unzip)
 
     def name(self):
-        raise NotImplementedError()
-
-    def unit(self):
         raise NotImplementedError()
 
     def lower_is_better(self):
@@ -72,11 +77,17 @@ class Benchmark:
     def teardown(self):
         raise NotImplementedError()
 
-    def ignore_iterations(self):
-        return False
+    def stddev_threshold(self):
+        return None
+
+    def get_suite_name(self) -> str:
+        return self.suite.name()
 
 class Suite:
     def benchmarks(self) -> list[Benchmark]:
+        raise NotImplementedError()
+
+    def name(self) -> str:
         raise NotImplementedError()
 
     def setup(self):

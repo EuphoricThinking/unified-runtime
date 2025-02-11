@@ -8,7 +8,8 @@ from utils.utils import git_clone
 from .base import Benchmark, Suite
 from .result import Result
 from utils.utils import run, create_build_path
-from .options import options
+from options import options
+from .oneapi import get_oneapi
 import os
 import csv
 import io
@@ -16,12 +17,15 @@ import io
 def isUMFAvailable():
     return options.umf is not None
 
-class UMFSuite(Suite):    
+class UMFSuite(Suite):
     def __init__(self, directory):
         self.directory = directory
         if not isUMFAvailable():
             print("UMF not provided. Related benchmarks will not run")
-    
+
+    def name(self) -> str:
+        return "UMF"
+
     def setup(self):
         if not isUMFAvailable():
             return []
@@ -29,18 +33,22 @@ class UMFSuite(Suite):
 
     def benchmarks(self) -> list[Benchmark]:
         if not isUMFAvailable():
-            return
+            return []
         
         benches = [
             GBench(self),
+            GBenchUmfProxy(self),
         ]
 
         return benches
 
 class ComputeUMFBenchmark(Benchmark):
     def __init__(self, bench, name):
+        super().__init__(bench.directory, bench)
+
         self.bench = bench
         self.bench_name = name
+        self.oneapi = get_oneapi()
 
         self.col_name = None
         self.col_iterations = None
@@ -50,16 +58,11 @@ class ComputeUMFBenchmark(Benchmark):
 
         self.col_statistics_time = None
 
-        super().__init__(bench.directory)
-
     def bin_args(self) -> list[str]:
         return []
 
     def extra_env_vars(self) -> dict:
         return {}
-
-    def unit(self):
-        return "μs"
 
     def setup(self):
         if not isUMFAvailable():
@@ -76,33 +79,15 @@ class ComputeUMFBenchmark(Benchmark):
         command += self.bin_args()
         env_vars.update(self.extra_env_vars())
 
-        result = self.run_bench(command, env_vars)
+        result = self.run_bench(command, env_vars, add_sycl=False, ld_library=[self.oneapi.tbb_lib()])
         parsed = self.parse_output(result)
         results = []
         for r in parsed:
             (config, pool, mean) = r
             label = f"{config} {pool}"
-            print("label inside:", label, " || config: ", config,  " || pool: ", pool)
-            results.append(Result(label=label, value=mean, command=command, env=env_vars, stdout=result))
+            results.append(Result(label=label, value=mean, command=command, env=env_vars, stdout=result, unit="ns", explicit_group=config))
         return results
 
-    # if different time units - convert TODO safety check for time units
-    def parse_output(self, output):
-        csv_file = io.StringIO(output)
-        reader = csv.reader(csv_file)
-        next(reader, None)
-        data_row = next(reader, None)
-        if data_row is None:
-            raise ValueError("Benchmark output does not contain data.")
-        try:
-            label = data_row[0]
-            mean = float(data_row[1])
-            return (label, mean)
-        except (ValueError, IndexError) as e:
-            raise ValueError(f"Error parsing output: {e}")
-        
-        
-        
     # Implementation with self.col_* indices could lead to the division by None
     def get_mean(self, datarow):
         raise NotImplementedError()
@@ -142,6 +127,10 @@ class GBench(ComputeUMFBenchmark):
     def unit(self):
         return "ns"
 
+    # these benchmarks are not stable, so set this at a large value
+    def stddev_threshold(self) -> float:
+        return 0.2 # 20%
+
     def get_pool_and_config(self, full_name):
         list_split = full_name.split(self.name_separator, 1)
         if len(list_split) != 2:
@@ -150,12 +139,9 @@ class GBench(ComputeUMFBenchmark):
         return list_split[self.idx_pool], list_split[self.idx_config]
 
     def get_mean(self, datarow):
-        running_time = float(datarow[self.col_statistics_time])
-        iterations = float(datarow[self.col_iterations])
+        return float(datarow[self.col_statistics_time])
 
-        return running_time / iterations
-
-    def parse_output(self, output):        
+    def parse_output(self, output):
         csv_file = io.StringIO(output)
         reader = csv.reader(csv_file)
 
@@ -174,6 +160,54 @@ class GBench(ComputeUMFBenchmark):
                 raise ValueError(f"Error parsing output: {e}")
 
         return results
+
+
+class GBenchPreloaded(GBench):
+    def __init__(self, bench, lib_to_be_replaced, replacing_lib):
+        super().__init__(bench)
+
+        self.lib_to_be_replaced = lib_to_be_replaced
+        self.replacing_lib = replacing_lib 
+
+    def bin_args(self):
+        full_args = super().bin_args()
+        full_args.append(f"--benchmark_filter={self.lib_to_be_replaced}")
+
+        return full_args
+
+    def get_preloaded_name(self, pool_name) -> str:
+        new_pool_name = pool_name.replace(self.lib_to_be_replaced, self.replacing_lib)
+
+        return new_pool_name
+
+    def parse_output(self, output):
+        csv_file = io.StringIO(output)
+        reader = csv.reader(csv_file)
+
+        data_row = next(reader, None)
+        if data_row is None:
+            raise ValueError("Benchmark output does not contain data.")
+
+        results = []
+        for row in reader:
+            try:
+                full_name = row[self.col_name]
+                pool, config = self.get_pool_and_config(full_name)
+                mean = self.get_mean(row)
+                updated_pool = self.get_preloaded_name(pool)
+                updated_config = self.get_preloaded_name(config)
+
+                results.append((updated_config, updated_pool, mean))
+            except KeyError as e:
+                raise ValueError(f"Error parsing output: {e}")
+
+        return results
     
 
-    
+class GBenchUmfProxy(GBenchPreloaded):
+    def __init__(self, bench):
+        super().__init__(bench, lib_to_be_replaced="glibc", replacing_lib="umfProxy")
+
+    def extra_env_vars(self) -> dict:
+        umf_proxy_path = os.path.join(options.umf, "lib", "libumf_proxy.so")
+        return {"LD_PRELOAD": umf_proxy_path}
