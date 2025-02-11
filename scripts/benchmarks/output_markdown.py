@@ -1,5 +1,6 @@
-# Copyright (C) 2024 Intel Corporation
-# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# Copyright (C) 2024-2025 Intel Corporation
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM 
+# Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
@@ -24,22 +25,24 @@ class OutputLine:
     def __repr__(self):
         return self.__str__()
 
-# Independent of the chart_data content number of required columns
-# in the markdown table:
-# Benchmark_name
+# The number of the required columns in the markdown table,
+# independent of the chart_data content.
+# Required columns:
+# - benchmark_name
 #
-# optional +1: relative performance value in given units
+# optional +1: relative performance
 num_info_columns = 1
 
-# Number of columns required for relative performance change calculation
-# In case of multiple provided saved baseline to compare, the relative
+# Number of columns required for relative performance change calculation.
+# In case of multiple provided saved baselines to compare, the relative
 # performance is not calculated, since the base (hopefully) usage case 
 # for this script would be comparing the performance of PR with the main branch
 num_baselines_required_for_rel_change = 2
 
 # Maximum number of characters that is allowed in request validation
-# for posting comments in GitHub PR
+# for posting comments in GitHub PRs
 max_markdown_size = 65536
+
 
 def is_relative_perf_comparison_to_be_performed(chart_data: 
                                                 dict[str, list[Result]], 
@@ -65,6 +68,7 @@ def get_chart_markdown_header(chart_data: dict[str, list[Result]],
 
     return summary_header
 
+
 def get_improved_regressed_summary(is_improved: bool, rows_count: int):
     title = "Improved"
     if not is_improved:
@@ -79,6 +83,7 @@ def get_improved_regressed_summary(is_improved: bool, rows_count: int):
             )
 
     return summary
+
 
 def get_relative_perf_summary(group_size: int, diffs_product: int, 
                               root_for_geometric_mean: int, group_name: str):
@@ -108,11 +113,14 @@ def get_main_branch_run_name(chart_data: dict[str, list[Result]],
         
     return None
 
+
 def get_available_markdown_size(current_markdown_size: int):
     return max(0, max_markdown_size - current_markdown_size)
 
+
 def is_content_in_size_limit(content_size: int, current_markdown_size: int):
     return content_size <= get_available_markdown_size(current_markdown_size)
+
 
 # Function to generate the markdown collapsible sections for each variant
 def generate_markdown_details(results: list[Result], 
@@ -128,7 +136,13 @@ def generate_markdown_details(results: list[Result],
         env_dict = res.env
         command = res.command
 
+        # If data is collected from already saved results,
+        # the content is parsed as strings
         if isinstance(res.env, str):
+            # Since the scripts would be used solely on data prepared
+            # by our scripts, this should be safe
+            # However, maybe needs an additional blessing
+            # https://docs.python.org/3/library/ast.html#ast.literal_eval
             env_dict = ast.literal_eval(res.env)
         if isinstance(res.command, str):
             command = ast.literal_eval(res.command)
@@ -137,16 +151,19 @@ def generate_markdown_details(results: list[Result],
                                  for key, value in env_dict.items())
         section = ("\n<details>\n"
                     f"<summary>{res.label}</summary>\n\n"
-                    f"#### Command:\n{' '.join(command)}\n\n")
+                    "#### Command:\n" 
+                    f"{' '.join(command)}\n\n")
+        
         if env_dict:
             section += (f"#### Environment Variables:\n {env_vars_str}\n")
+
         section += "\n</details>\n" 
             
         markdown_sections.append(section)
 
     markdown_sections.append("\n</details>\n")
     
-    full_markdown = "\n".join(markdown_sections) # without newline?
+    full_markdown = "\n".join(markdown_sections)
 
     if markdown_size == MarkdownSize.FULL:
         return full_markdown
@@ -186,7 +203,8 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
 
         # Determine the best value for the given benchmark, among the results
         # from all saved runs specified by --compare
-        # key: run name, res: single result collected in the given run
+        # key: run name,
+        # res: single result collected in the given run
         for key, res in results.items():
             if not are_suite_group_assigned:
                 oln.suite = res.suite
@@ -219,6 +237,7 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
                                                        baseline_name):
             pr_key = baseline_name
             main_key = get_main_branch_run_name(chart_data, baseline_name) 
+
             if (pr_key in results) and (main_key in results):
                 pr_val = results[pr_key].value
                 main_val = results[main_key].value
@@ -242,11 +261,13 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
 
     improved_rows = []
     regressed_rows = []
+
     if len(diff_values) > 0:
         for oln in sorted_detailed_list:
             if oln.diff != None:
-                oln.row += f" {(oln.diff - 1)*100:.2f}%"
                 delta = oln.diff - 1
+                oln.row += f" {delta*100:.2f}%"
+
                 if abs(delta) > options.epsilon:
                     if delta > 0:
                         improved_rows.append(oln.row + " | \n")
@@ -263,7 +284,7 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
     regressed_rows.reverse()
 
     is_at_least_one_diff = False
-    summary_line = '' #'\n'
+    summary_line = ''
     
     if len(improved_rows) > 0:
         is_at_least_one_diff = True
@@ -317,7 +338,7 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
             outgroup_s = sorted(outgroup, key=lambda x: 
                                 (x.diff is not None, x.diff), reverse=True)
 
-            # Geometric mean 
+            # Geometric mean calculation
             product = 1.0
             root = 0
             for oln in outgroup_s:
@@ -343,13 +364,15 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
     if markdown_size == MarkdownSize.FULL:
         return summary_line, summary_table
     else:
-        if is_content_in_size_limit(content_size=len(summary_table),
-                                     current_markdown_size=len(summary_line)):
+        full_content_size = len(summary_table) + len(summary_line)
+
+        if is_content_in_size_limit(content_size=full_content_size,
+                                     current_markdown_size=0):
             return summary_line, summary_table
         else:
             if is_content_in_size_limit(content_size=len(summary_line), 
                                         current_markdown_size=0):
-                return summary_line
+                return summary_line, ''
             else:
                 return (
                     "\n# Summary\n"
@@ -357,7 +380,9 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]],
                     )
 
 
-def generate_markdown(name: str, chart_data: dict[str, list[Result]], markdown_size: MarkdownSize):
+def generate_markdown(name: str, 
+                      chart_data: dict[str, list[Result]],
+                      markdown_size: MarkdownSize):
     (summary_line, summary_table) = generate_summary_table_and_chart(
         chart_data, 
         name, 
@@ -374,12 +399,12 @@ def generate_markdown(name: str, chart_data: dict[str, list[Result]], markdown_s
     )
 
     if name in chart_data.keys():
-        generated_markdown += ("\n# Details\n"
-        f"{generate_markdown_details(
-            chart_data[name], 
-            current_markdown_size, 
-            markdown_size
-            )}\n"
+        markdown_details = generate_markdown_details(chart_data[name], 
+                                                     current_markdown_size,
+                                                     markdown_size)
+        generated_markdown += (
+            "\n# Details\n"
+            f"{markdown_details}\n"
         )
 
     return generated_markdown
